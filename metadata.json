@@ -1,0 +1,7 @@
+{
+  "name": "慈濟防救災團隊活動與後勤調度儀表板",
+  "description": "國家防災日主演練與綜合座談活動之人員分佈、交通、用餐、安單住宿及功能組調度視覺化儀表板",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
