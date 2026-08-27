@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Building2, 
   Compass, 
   UtensilsCrossed, 
   BedDouble, 
-  Users,
-  Calendar,
-  AlertCircle
+  Users
 } from 'lucide-react';
 import { Header } from './components/Header';
 import { OverviewSection } from './components/OverviewSection';
@@ -19,14 +17,20 @@ import { RosterSearchSection } from './components/RosterSearchSection';
 import { DataSyncModal } from './components/DataSyncModal';
 import { INITIAL_DATA, GOOGLE_SHEETS_CSV_URL } from './data/staticData';
 import { fetchGoogleSheetData } from './data/csvParser';
-import { DashboardDataset } from './types';
+import { DashboardDataset, SessionFilter } from './types';
+import { filterDatasetBySession } from './utils/filterData';
 
 export default function App() {
   const [data, setData] = useState<DashboardDataset>(INITIAL_DATA);
+  const [selectedSession, setSelectedSession] = useState<SessionFilter>('all');
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const displayData = useMemo(() => {
+    return filterDatasetBySession(data, selectedSession);
+  }, [data, selectedSession]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -49,27 +53,30 @@ export default function App() {
   };
 
   const navTabs = [
-    { id: 'overview', label: '總覽大盤', icon: LayoutDashboard, badge: '62人' },
-    { id: 'regions', label: '合心區與功能組', icon: Building2, badge: '14區' },
-    { id: 'venues', label: '場次與交通調度', icon: Compass, badge: '14車' },
-    { id: 'meals', label: '膳食後勤需求', icon: UtensilsCrossed, badge: '222餐' },
-    { id: 'lodging', label: '安單住宿排房', icon: BedDouble, badge: '32人峰值' },
-    { id: 'roster', label: '人員名冊檢索', icon: Users, badge: '完整檢索' },
+    { id: 'overview', label: '總覽大盤', icon: LayoutDashboard, badge: `${displayData.summary.totalParticipants}人` },
+    { id: 'regions', label: '合心區與功能組', icon: Building2, badge: `${displayData.regionStats.length}區` },
+    { id: 'venues', label: '場次與交通調度', icon: Compass, badge: `${displayData.transportStats.find(t => t.mode.includes('駕駛'))?.count || 0}車` },
+    { id: 'meals', label: '膳食後勤需求', icon: UtensilsCrossed, badge: `${displayData.summary.totalMealsPlanned}餐` },
+    { id: 'lodging', label: '安單住宿排房', icon: BedDouble, badge: `${displayData.summary.maxDailyLodging}人峰值` },
+    { id: 'roster', label: '人員名冊檢索', icon: Users, badge: `${displayData.summary.totalParticipants}人` },
   ];
 
   return (
     <div className="min-h-screen bg-[#F4F1EA] text-[#3D3D3D] flex flex-col font-sans">
       
-      {/* Header Bar */}
+      {/* Header Bar with integrated Session Toggle */}
       <Header
-        data={data}
+        data={displayData}
+        rawDataset={data}
+        selectedSession={selectedSession}
+        onSelectSession={setSelectedSession}
         onRefresh={() => handleRefresh()}
         isRefreshing={isRefreshing}
         onOpenSyncModal={() => setIsSyncModalOpen(true)}
       />
 
       {/* Navigation Subheader */}
-      <div className="bg-[#F9F8F5] border-b border-[#D9D4C7] sticky top-16 z-30 shadow-2xs print:hidden">
+      <div className="bg-[#F9F8F5] border-b border-[#D9D4C7] sticky top-[106px] sm:top-[98px] z-30 shadow-2xs print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-1 sm:space-x-2 overflow-x-auto py-2.5 scrollbar-none">
             {navTabs.map((tab) => {
@@ -81,7 +88,7 @@ export default function App() {
                   key={tab.id}
                   id={`tab-${tab.id}`}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     isActive
                       ? 'bg-[#5A6355] text-[#F4F1EA] shadow-xs'
                       : 'text-[#5A6355] hover:text-[#2C332B] hover:bg-[#E9E6DF]'
@@ -103,23 +110,23 @@ export default function App() {
 
       {/* Main Body Content Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        
+
         {/* Dynamic View Rendering */}
         {activeTab === 'overview' && (
           <OverviewSection
-            data={data}
+            data={displayData}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />
         )}
 
         {activeTab === 'regions' && (
-          <RegionFunctionSection data={data} />
+          <RegionFunctionSection data={displayData} />
         )}
 
         {activeTab === 'venues' && (
           <SeminarTransportSection
-            data={data}
+            data={displayData}
             onFilterRoster={(type, val) => {
               setActiveTab('roster');
             }}
@@ -127,15 +134,15 @@ export default function App() {
         )}
 
         {activeTab === 'meals' && (
-          <MealSection data={data} />
+          <MealSection data={displayData} />
         )}
 
         {activeTab === 'lodging' && (
-          <LodgingSection data={data} />
+          <LodgingSection data={displayData} />
         )}
 
         {activeTab === 'roster' && (
-          <RosterSearchSection data={data} />
+          <RosterSearchSection data={displayData} />
         )}
 
       </main>
